@@ -215,8 +215,12 @@ app.post('/api/v1/chat/completions', async (req, res) => {
                                         }
                                     }
                                 }
+                                // 处理转义字符
+                                if (parsed.choices && parsed.choices[0]?.delta?.content) {
+                                    parsed.choices[0].delta.content = parsed.choices[0].delta.content.replace(/\\n/g, '\n');
+                                }
                                 // 只有在成功解析JSON后才发送数据
-                                res.write(`${line}\n\n`);
+                                res.write(`data: ${JSON.stringify(parsed)}\n\n`);
                             }
                         } catch (e) {
                             // 如果JSON解析失败，说明数据不完整，等待下一个chunk
