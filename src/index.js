@@ -227,7 +227,7 @@ app.post('/api/v1/chat/completions', async (req, res) => {
                                 }
                                 
                                 // 直接发送原始数据，避免 JSON.stringify 的额外转义
-                                res.write(`data: ${data.replace(/\\{2}/g, '\\')}\n\n`);
+                                res.write(`data: ${data.replaceAll('\\n', '\n').replaceAll("\\",String.fromCharCode(92))}\n\n`);
                             }
                         } catch (e) {
                             // 如果JSON解析失败，说明数据不完整，等待下一个chunk
