@@ -316,15 +316,16 @@ app.post('/api/v1/chat/completions', async (req, res) => {
                 const reasoning = response.data.choices[0].message?.reasoning;
                 
                 if (content) {
-                    // 将所有转义字符替换为实际字符
-                    response.data.choices[0].message.content = content.replace(/\\(.)/g, '$1');
+                    // 不再需要替换转义字符
+                    // response.data.choices[0].message.content = content.replace(/\\(.)/g, '$1');
                 }
                 if (reasoning) {
-                    // 将所有转义字符替换为实际字符
-                    response.data.choices[0].message.reasoning = reasoning.replace(/\\(.)/g, '$1');
+                    // 不再需要替换转义字符
+                    // response.data.choices[0].message.reasoning = reasoning.replace(/\\(.)/g, '$1');
                 }
             }
             
+            // 直接发送原始响应数据
             res.json(response.data);
         }
     } catch (error) {
