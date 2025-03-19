@@ -217,18 +217,16 @@ app.post('/api/v1/chat/completions', async (req, res) => {
                                 }
                                 // 处理转义字符
                                 if (parsed.choices && parsed.choices[0]?.delta?.content) {
-                                    parsed.choices[0].delta.content = parsed.choices[0].delta.content.replace(/\\(.)/g, '$1');
+                                    // 不再需要这里的替换，因为我们会在最终输出时处理
+                                    // parsed.choices[0].delta.content = parsed.choices[0].delta.content.replace(/\\(.)/g, '$1');
                                 }
                                 if (parsed.choices && parsed.choices[0]?.delta?.reasoning) {
-                                    parsed.choices[0].delta.reasoning = parsed.choices[0].delta.reasoning.replace(/\\(.)/g, '$1');
+                                    // 不再需要这里的替换，因为我们会在最终输出时处理
+                                    // parsed.choices[0].delta.reasoning = parsed.choices[0].delta.reasoning.replace(/\\(.)/g, '$1');
                                 }
-                                // 将对象转换为 JSON 字符串
-                                let jsonString = JSON.stringify(parsed);
-                                // 处理转义字符：将 \\ 替换为 \
-                                jsonString = jsonString.replace(/\\{2}/g, '\\');
                                 
-                                // 发送处理后的数据
-                                res.write(`data: ${jsonString}\n\n`);
+                                // 直接发送原始数据，避免 JSON.stringify 的额外转义
+                                res.write(`data: ${data}\n\n`);
                             }
                         } catch (e) {
                             // 如果JSON解析失败，说明数据不完整，等待下一个chunk
