@@ -215,6 +215,7 @@ app.post('/api/v1/chat/completions', async (req, res) => {
                                         }
                                     }
                                 }
+                                
                                 // 处理转义字符
                                 if (parsed.choices && parsed.choices[0]?.delta?.content) {
                                     // 不再需要这里的替换，因为我们会在最终输出时处理
@@ -226,7 +227,7 @@ app.post('/api/v1/chat/completions', async (req, res) => {
                                 }
                                 
                                 // 直接发送原始数据，避免 JSON.stringify 的额外转义
-                                res.write(`data: ${data}\n\n`);
+                                res.write(`data: ${data.replace(/\\{2}/g, '\\')}\n\n`);
                             }
                         } catch (e) {
                             // 如果JSON解析失败，说明数据不完整，等待下一个chunk
@@ -316,12 +317,10 @@ app.post('/api/v1/chat/completions', async (req, res) => {
                 const reasoning = response.data.choices[0].message?.reasoning;
                 
                 if (content) {
-                    // 不再需要替换转义字符
-                    // response.data.choices[0].message.content = content.replace(/\\(.)/g, '$1');
+                    response.data.choices[0].message.content = content.replace(/\\{2}/g, '\\');
                 }
                 if (reasoning) {
-                    // 不再需要替换转义字符
-                    // response.data.choices[0].message.reasoning = reasoning.replace(/\\(.)/g, '$1');
+                    response.data.choices[0].message.reasoning = reasoning.replace(/\\{2}/g, '\\');
                 }
             }
             
