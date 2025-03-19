@@ -95,15 +95,33 @@ async function updateApiKeyUsage(key) {
         const minuteKey = `${key}:minute`;
         const dayKey = `${key}:day`;
         
-        // 设置或更新分钟计数
-        let count = await redisClient.get(minuteKey) || 0;
-        await redisClient.setEx(minuteKey, 60, String(parseInt(count) + 1));
+        // 使用原子操作增加计数
+        const minuteCount = await redisClient.incr(minuteKey);
+        const dayCount = await redisClient.incr(dayKey);
         
-        // 设置或更新天计数
-        count = await redisClient.get(dayKey) || 0;
-        await redisClient.setEx(dayKey, secondsUntilTomorrow, String(parseInt(count) + 1));
+        // 检查是否超出限制
+        if (minuteCount > 20 || dayCount > 200) {
+            // 如果超出限制，回滚计数
+            if (minuteCount > 20) {
+                await redisClient.decr(minuteKey);
+                logger.warn(`Minute limit exceeded for key ${key.substring(0, 10)}..., rolling back`);
+            }
+            if (dayCount > 200) {
+                await redisClient.decr(dayKey);
+                logger.warn(`Daily limit exceeded for key ${key.substring(0, 10)}..., rolling back`);
+            }
+            throw new Error('Rate limit exceeded');
+        }
+        
+        // 设置过期时间
+        if (await redisClient.ttl(minuteKey) < 0) {
+            await redisClient.expire(minuteKey, 60);
+        }
+        if (await redisClient.ttl(dayKey) < 0) {
+            await redisClient.expire(dayKey, secondsUntilTomorrow);
+        }
 
-        logger.debug(`Updated usage for key ${key.substring(0, 10)}... (expires at ${tomorrow.toISOString()})`);
+        logger.debug(`Updated usage for key ${key.substring(0, 10)}... (minute: ${minuteCount}/20, day: ${dayCount}/200, expires at ${tomorrow.toISOString()})`);
     } catch (error) {
         logger.error('Error updating API key usage:', error);
         throw error;
