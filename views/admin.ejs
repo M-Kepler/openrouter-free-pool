@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenRouter API Key Management</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>OpenRouter API Key Management</h1>
+        </div>
+
+        <% if (message) { %>
+            <div class="alert alert-<%= message.type %>">
+                <%= message.text %>
+            </div>
+        <% } %>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-value"><%= stats.total_keys %></div>
+                <div class="stat-label">Total Keys</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value"><%= stats.available_keys %></div>
+                <div class="stat-label">Available Keys</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value"><%= stats.total_requests %></div>
+                <div class="stat-label">Total Requests (24h)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value"><%= stats.error_rate %>%</div>
+                <div class="stat-label">Error Rate (24h)</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Add New API Key</h2>
+            <form action="/admin/keys/add" method="POST" class="form-group">
+                <div class="form-group">
+                    <label for="apiKey">API Key</label>
+                    <input type="text" id="apiKey" name="apiKey" class="form-control" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Add Key</button>
+            </form>
+        </div>
+
+        <div class="section">
+            <h2>API Keys Status <button onclick="refreshStatus()" class="refresh-button">🔄 Refresh</button></h2>
+            <ul class="key-list" id="keyList">
+                <% keys.forEach(function(key) { %>
+                    <li class="key-item">
+                        <div class="key-info">
+                            <strong>Key: <%= key.key %></strong>
+                            <div class="key-status">
+                                <span>
+                                    Minute: <%= key.minute.used %>/<%= key.minute.used + key.minute.remaining %>
+                                    <% if (key.minute.resetIn) { %>
+                                        (Resets in <%= key.minute.resetIn %>s)
+                                    <% } %>
+                                    <div class="progress-bar">
+                                        <div class="progress-bar-fill" style="width: <%= (key.minute.used / 20) * 100 %>%"></div>
+                                    </div>
+                                </span>
+                                <span>
+                                    Day: <%= key.day.used %>/<%= key.day.used + key.day.remaining %>
+                                    <% if (key.day.resetIn) { %>
+                                        (Resets in <%= key.day.resetIn %>s)
+                                    <% } %>
+                                    <div class="progress-bar">
+                                        <div class="progress-bar-fill" style="width: <%= (key.day.used / 200) * 100 %>%"></div>
+                                    </div>
+                                </span>
+                                <span class="status-badge <%= key.available ? 'available' : 'unavailable' %>">
+                                    <%= key.available ? 'Available' : 'Unavailable' %>
+                                </span>
+                            </div>
+                        </div>
+                        <form action="/admin/keys/delete" method="POST" style="display: inline;">
+                            <input type="hidden" name="apiKey" value="<%= key.key %>">
+                            <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete this key?')">Delete</button>
+                        </form>
+                    </li>
+                <% }); %>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>Error Logs <button onclick="refreshLogs()" class="refresh-button">🔄 Refresh</button></h2>
+            <div class="logs" id="errorLogs">
+                <% logs.forEach(function(log) { %>
+                    <div class="log-entry <%= log.level %>">
+                        <strong>[<%= log.timestamp %>] <%= log.level.toUpperCase() %>:</strong>
+                        <% if (typeof log.message === 'object') { %>
+                            <%= JSON.stringify(log.message, null, 2).replace(/[{}"]/g, '').replace(/,/g, ', ') %>
+                        <% } else { %>
+                            <%= log.message %>
+                        <% } %>
+                    </div>
+                <% }); %>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function refreshStatus() {
+            fetch('/api/v1/keys/status')
+                .then(response => response.json())
+                .then(data => {
+                    location.reload();
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function refreshLogs() {
+            fetch('/admin/logs')
+                .then(response => response.json())
+                .then(data => {
+                    const logsContainer = document.getElementById('errorLogs');
+                    logsContainer.innerHTML = data.logs.map(log => {
+                        let message = log.message;
+                        if (typeof message === 'object') {
+                            message = JSON.stringify(message, null, 2)
+                                .replace(/[{}"]/g, '')
+                                .replace(/,/g, ', ');
+                        }
+                        return `
+                            <div class="log-entry ${log.level}">
+                                <strong>[${log.timestamp}] ${log.level.toUpperCase()}:</strong>
+                                ${message}
+                            </div>
+                        `;
+                    }).join('');
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        // 自动刷新状态和日志
+        setInterval(refreshStatus, 30000);  // 每30秒刷新一次
+        setInterval(refreshLogs, 10000);    // 每10秒刷新一次
+    </script>
+</body>
+</html> 
