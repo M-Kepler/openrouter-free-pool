@@ -222,8 +222,13 @@ app.post('/api/v1/chat/completions', async (req, res) => {
                                 if (parsed.choices && parsed.choices[0]?.delta?.reasoning) {
                                     parsed.choices[0].delta.reasoning = parsed.choices[0].delta.reasoning.replace(/\\(.)/g, '$1');
                                 }
-                                // 只有在成功解析JSON后才发送数据
-                                res.write(`data: ${JSON.stringify(parsed)}\n\n`);
+                                // 将对象转换为 JSON 字符串
+                                let jsonString = JSON.stringify(parsed);
+                                // 处理转义字符：将 \\ 替换为 \
+                                jsonString = jsonString.replace(/\\{2}/g, '\\');
+                                
+                                // 发送处理后的数据
+                                res.write(`data: ${jsonString}\n\n`);
                             }
                         } catch (e) {
                             // 如果JSON解析失败，说明数据不完整，等待下一个chunk
