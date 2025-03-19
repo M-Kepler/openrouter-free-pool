@@ -85,8 +85,12 @@ async function getAvailableApiKey() {
 // 更新API使用计数
 async function updateApiKeyUsage(key) {
     try {
-        const minute = Math.floor(Date.now() / 60000);
-        const day = Math.floor(Date.now() / 86400000);
+        // 计算次日0点的时间戳
+        const now = new Date();
+        const tomorrow = new Date(now);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(0, 0, 0, 0);
+        const secondsUntilTomorrow = Math.floor((tomorrow - now) / 1000);
         
         const minuteKey = `${key}:minute`;
         const dayKey = `${key}:day`;
@@ -97,9 +101,9 @@ async function updateApiKeyUsage(key) {
         
         // 设置或更新天计数
         count = await redisClient.get(dayKey) || 0;
-        await redisClient.setEx(dayKey, 86400, String(parseInt(count) + 1));
+        await redisClient.setEx(dayKey, secondsUntilTomorrow, String(parseInt(count) + 1));
 
-        logger.debug(`Updated usage for key ${key.substring(0, 10)}...`);
+        logger.debug(`Updated usage for key ${key.substring(0, 10)}... (expires at ${tomorrow.toISOString()})`);
     } catch (error) {
         logger.error('Error updating API key usage:', error);
         throw error;

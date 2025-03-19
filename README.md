@@ -17,10 +17,17 @@
 
 ## 系统要求
 
+### 直接部署
 - Node.js 14+
 - Redis 6+
 
-## 安装
+### Docker部署
+- Docker 20.10+
+- Docker Compose 2.0+
+
+## 安装和部署
+
+### 方式一：直接部署
 
 1. 克隆仓库：
 ```bash
@@ -46,11 +53,58 @@ cp .env.example .env
 - `PORT`: 服务运行端口
 - `SESSION_SECRET`: Session密钥（可选，用于管理界面）
 
-## 运行
-
+4. 运行服务：
 ```bash
 npm start
 ```
+
+### 方式二：Docker部署
+
+1. 克隆仓库并进入目录：
+```bash
+git clone [repository-url]
+cd openrouter-free-pool
+```
+
+2. 配置环境变量：
+```bash
+cp .env.example .env
+```
+编辑 `.env` 文件，设置必要的配置项。
+
+3. 构建和启动容器：
+```bash
+docker-compose up -d
+```
+
+4. 查看日志：
+```bash
+docker-compose logs -f app
+```
+
+5. 停止服务：
+```bash
+docker-compose down
+```
+
+### Docker部署注意事项
+
+1. 数据持久化：
+   - Redis数据存储在命名卷 `redis_data` 中
+   - 日志文件映射到主机的 `./logs` 目录
+   - 环境配置文件 `.env` 映射到容器内
+
+2. 端口映射：
+   - 应用服务端口：3000
+   - Redis端口：6379
+
+3. 自动重启：
+   - 服务配置了自动重启策略，除非手动停止
+   - Redis配置了AOF持久化，确保数据不丢失
+
+4. 环境变量：
+   - Redis主机名在容器环境中自动设置为 `redis`
+   - 可以通过修改 `docker-compose.yml` 自定义其他环境变量
 
 ## API使用
 
