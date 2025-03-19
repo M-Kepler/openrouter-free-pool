@@ -159,7 +159,9 @@ app.post('/api/v1/chat/completions', async (req, res) => {
                 headers: {
                     'Authorization': `Bearer ${apiKey}`,
                     'Content-Type': 'application/json',
-                    'Accept': 'text/event-stream'
+                    'Accept': 'text/event-stream',
+                    'HTTP-Referer': 'https://github.com/fengqiaozhu/openrouter-free-pool',
+                    'X-Title': 'OpenRouter Free Pool'
                 },
                 data: req.body,
                 responseType: 'stream'
@@ -254,9 +256,14 @@ app.post('/api/v1/chat/completions', async (req, res) => {
                 url: 'https://openrouter.ai/api/v1/chat/completions',
                 headers: {
                     'Authorization': `Bearer ${apiKey}`,
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'HTTP-Referer': 'https://github.com/fengqiaozhu/openrouter-free-pool',
+                    'X-Title': 'OpenRouter Free Pool'
                 },
-                data: req.body
+                data: {
+                    ...req.body,
+                    response_format: { type: "text" }
+                }
             });
 
             // 检查响应中是否包含限流错误
