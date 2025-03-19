@@ -299,6 +299,16 @@ app.post('/api/v1/chat/completions', async (req, res) => {
 
             await updateApiKeyUsage(apiKey);
             logger.debug('Successfully processed request');
+            
+            // 处理响应内容中的转义字符
+            if (typeof response.data === 'object' && response.data.choices && response.data.choices[0]) {
+                const content = response.data.choices[0].message?.content;
+                if (content) {
+                    // 将转义的换行符替换为实际的换行符
+                    response.data.choices[0].message.content = content.replace(/\\n/g, '\n');
+                }
+            }
+            
             res.json(response.data);
         }
     } catch (error) {
