@@ -217,7 +217,10 @@ app.post('/api/v1/chat/completions', async (req, res) => {
                                 }
                                 // 处理转义字符
                                 if (parsed.choices && parsed.choices[0]?.delta?.content) {
-                                    parsed.choices[0].delta.content = parsed.choices[0].delta.content.replace(/\\n/g, '\n');
+                                    parsed.choices[0].delta.content = parsed.choices[0].delta.content.replace(/\\(.)/g, '$1');
+                                }
+                                if (parsed.choices && parsed.choices[0]?.delta?.reasoning) {
+                                    parsed.choices[0].delta.reasoning = parsed.choices[0].delta.reasoning.replace(/\\(.)/g, '$1');
                                 }
                                 // 只有在成功解析JSON后才发送数据
                                 res.write(`data: ${JSON.stringify(parsed)}\n\n`);
@@ -307,9 +310,15 @@ app.post('/api/v1/chat/completions', async (req, res) => {
             // 处理响应内容中的转义字符
             if (typeof response.data === 'object' && response.data.choices && response.data.choices[0]) {
                 const content = response.data.choices[0].message?.content;
+                const reasoning = response.data.choices[0].message?.reasoning;
+                
                 if (content) {
-                    // 将转义的换行符替换为实际的换行符
-                    response.data.choices[0].message.content = content.replace(/\\n/g, '\n');
+                    // 将所有转义字符替换为实际字符
+                    response.data.choices[0].message.content = content.replace(/\\(.)/g, '$1');
+                }
+                if (reasoning) {
+                    // 将所有转义字符替换为实际字符
+                    response.data.choices[0].message.reasoning = reasoning.replace(/\\(.)/g, '$1');
                 }
             }
             
