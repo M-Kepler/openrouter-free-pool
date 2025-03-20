@@ -227,7 +227,7 @@ app.post('/api/v1/chat/completions', async (req, res) => {
                                 }
                                 
                                 // 直接发送原始数据，避免 JSON.stringify 的额外转义
-                                res.write(`data: ${data.replaceAll('\\n', '\n').replaceAll('\\\\\\', '\\')}\n\n`);
+                                res.write(`data: ${data.replaceAll('\\n', '\n')}\n\n`);
                             }
                         } catch (e) {
                             // 如果JSON解析失败，说明数据不完整，等待下一个chunk
@@ -317,10 +317,10 @@ app.post('/api/v1/chat/completions', async (req, res) => {
                 const reasoning = response.data.choices[0].message?.reasoning;
                 
                 if (content) {
-                    response.data.choices[0].message.content = content.replace(/\\{2}/g, '\\');
+                    response.data.choices[0].message.content = content.replaceAll('\\n', '\n');
                 }
                 if (reasoning) {
-                    response.data.choices[0].message.reasoning = reasoning.replace(/\\{2}/g, '\\');
+                    response.data.choices[0].message.reasoning = reasoning.replaceAll('\\n', '\n');
                 }
             }
             
