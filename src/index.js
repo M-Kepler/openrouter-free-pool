@@ -7,6 +7,7 @@ const path = require('path');
 const fs = require('fs').promises;
 const session = require('express-session');
 const app = express();
+const cors = require('cors');
 
 // 配置express-session
 app.use(session({
@@ -41,6 +42,13 @@ const redisClient = Redis.createClient({
 // API密钥池
 const API_KEYS = process.env.OPENROUTER_API_KEYS.split(',');
 logger.info(`Loaded ${API_KEYS.length} API keys`);
+
+// 允许所有来源跨域（开发环境推荐，生产环境建议指定 origin）
+app.use(cors({
+    origin: '*', // 或者指定 ['http://10.0.0.232:47334'] 更安全
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 // 中间件
 app.use(express.json());
