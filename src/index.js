@@ -182,6 +182,8 @@ app.post('/api/v1/chat/completions', async (req, res) => {
                 const lines = buffer.split('\n');
                 // 保留最后一行，因为它可能是不完整的
                 buffer = lines.pop() || '';
+                
+
 
                 for (const line of lines) {
                     if (line.trim() === '') continue;
@@ -191,10 +193,19 @@ app.post('/api/v1/chat/completions', async (req, res) => {
                     }
                     if (line.startsWith('data: ')) {
                         try {
-                            // 检查是否是完整的JSON
                             const data = line.slice(6); // 移除 'data: ' 前缀
-                            if (data.trim()) {
+                            if (data.trim() && data.trim() !== '[DONE]') {
+                                // 验证JSON格式完整性
+                                if (!data.trim().startsWith('{') || !data.trim().endsWith('}')) {
+                                    throw new Error('Incomplete JSON data');
+                                }
                                 const parsed = JSON.parse(data);
+                                
+                                // 验证JSON结构是否完整且有效
+                                if (!parsed || typeof parsed !== 'object') {
+                                    throw new Error('Invalid JSON structure');
+                                }
+                                
                                 // 检查是否是限流错误
                                 if (parsed.error?.code === 429) {
                                     const errorMessage = parsed.error.message;
@@ -224,42 +235,18 @@ app.post('/api/v1/chat/completions', async (req, res) => {
                                     }
                                 }
                                 
-                                // 处理转义字符
-                                if (parsed.choices && parsed.choices[0]?.delta?.content) {
-                                    // 不再需要这里的替换，因为我们会在最终输出时处理
-                                    // parsed.choices[0].delta.content = parsed.choices[0].delta.content.replace(/\\(.)/g, '$1');
-                                }
-                                if (parsed.choices && parsed.choices[0]?.delta?.reasoning) {
-                                    // 不再需要这里的替换，因为我们会在最终输出时处理
-                                    // parsed.choices[0].delta.reasoning = parsed.choices[0].delta.reasoning.replace(/\\(.)/g, '$1');
-                                }
-                                
                                 // 直接发送原始数据，避免 JSON.stringify 的额外转义
-                                res.write(`data: ${data.replaceAll('\\n', '\n')}\n\n`);
+                                res.write(`data: ${data}\n\n`);
                             }
                         } catch (e) {
-                            // 如果JSON解析失败，说明数据不完整，等待下一个chunk
-                            logger.debug('Incomplete SSE data chunk, waiting for more data');
-                            buffer = line + '\n' + buffer; // 将不完整的行放回buffer
+                            // 如果JSON解析失败，说明数据不完整或格式错误，跳过此数据块
+                            logger.debug(`SSE数据块JSON解析失败，跳过此数据块。错误: ${e.message}，数据: ${line.substring(0, 100)}...`);
                         }
                     }
                 }
             });
 
             response.data.on('end', async () => {
-                // 处理buffer中剩余的数据
-                if (buffer.trim()) {
-                    const line = buffer.trim();
-                    if (line.startsWith('data: ')) {
-                        try {
-                            const data = line.slice(6);
-                            JSON.parse(data); // 验证是否是有效的JSON
-                            res.write(`${line}\n\n`);
-                        } catch (e) {
-                            logger.debug('Discarding incomplete data at stream end');
-                        }
-                    }
-                }
                 await updateApiKeyUsage(apiKey);
                 res.end();
             });
@@ -336,7 +323,24 @@ app.post('/api/v1/chat/completions', async (req, res) => {
             res.json(response.data);
         }
     } catch (error) {
-        logger.error('Error processing request:', error);
+        logger.error('Error processing request:', {
+            message: error.message,
+            stack: error.stack,
+            response: error.response?.data,
+            status: error.response?.status
+        });
+        
+        // 如果是JSON解析错误，提供更具体的错误信息
+        if (error.message.includes('EOF') || error.message.includes('JSON')) {
+            return res.status(400).json({
+                error: {
+                    message: "Invalid JSON format in request or response",
+                    code: 400,
+                    details: error.message
+                }
+            });
+        }
+        
         res.status(error.response?.status || 500).json(error.response?.data || {
             error: {
                 message: "Internal server error",
@@ -653,4 +657,4 @@ async function updateEnvFile(key, value) {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     logger.info(`Server is running on port ${PORT}`);
-}); 
+});

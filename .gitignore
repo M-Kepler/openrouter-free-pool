@@ -32,3 +32,6 @@ Thumbs.db
 .docker/
 docker-compose.override.yml
 redis_data/ 
+API_DOCUMENTATION.md
+EOF_ERROR_SOLUTION.md
+test-api.js
