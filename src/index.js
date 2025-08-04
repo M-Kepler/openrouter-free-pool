@@ -9,6 +9,11 @@ const session = require('express-session');
 const app = express();
 const cors = require('cors');
 
+// 增加请求体的大小限制，设置为 10mb
+const bodyParser = require('body-parser');
+app.use(bodyParser.json({ limit: '10mb' }));
+app.use(bodyParser.urlencoded({ limit: '10mb', extended: true }));
+
 // 配置express-session
 app.use(session({
     secret: process.env.SESSION_SECRET || 'your-secret-key',
@@ -75,14 +80,14 @@ async function getAvailableApiKey() {
     for (const key of API_KEYS) {
         const minuteCount = await redisClient.get(`${key}:minute`);
         const dayCount = await redisClient.get(`${key}:day`);
-        
+
         // 如果分钟计数达到20或天计数达到200，跳过这个key
-        if ((minuteCount && parseInt(minuteCount) >= 20) || 
+        if ((minuteCount && parseInt(minuteCount) >= 20) ||
             (dayCount && parseInt(dayCount) >= 200)) {
             logger.debug(`Skipping key ${key.substring(0, 10)}... (minute: ${minuteCount}, day: ${dayCount})`);
             continue;
         }
-        
+
         logger.debug(`Selected API key: ${key.substring(0, 10)}... (minute: ${minuteCount}, day: ${dayCount})`);
         return key;
     }
@@ -99,14 +104,14 @@ async function updateApiKeyUsage(key) {
         tomorrow.setDate(tomorrow.getDate() + 1);
         tomorrow.setHours(0, 0, 0, 0);
         const secondsUntilTomorrow = Math.floor((tomorrow - now) / 1000);
-        
+
         const minuteKey = `${key}:minute`;
         const dayKey = `${key}:day`;
-        
+
         // 使用原子操作增加计数
         const minuteCount = await redisClient.incr(minuteKey);
         const dayCount = await redisClient.incr(dayKey);
-        
+
         // 检查是否超出限制
         if (minuteCount > 20 || dayCount > 200) {
             // 如果超出限制，回滚计数
@@ -120,7 +125,7 @@ async function updateApiKeyUsage(key) {
             }
             throw new Error('Rate limit exceeded');
         }
-        
+
         // 设置过期时间
         if (await redisClient.ttl(minuteKey) < 0) {
             await redisClient.expire(minuteKey, 60);
@@ -152,9 +157,9 @@ app.post('/api/v1/chat/completions', async (req, res) => {
 
         // 检查是否请求流式响应
         const isStreaming = req.body.stream === true;
-        
+
         logger.info(`Making ${isStreaming ? 'streaming' : 'normal'} request to OpenRouter with key ${apiKey.substring(0, 10)}...`);
-        
+
         if (isStreaming) {
             // 设置 SSE 响应头
             res.setHeader('Content-Type', 'text/event-stream');
@@ -182,7 +187,7 @@ app.post('/api/v1/chat/completions', async (req, res) => {
                 const lines = buffer.split('\n');
                 // 保留最后一行，因为它可能是不完整的
                 buffer = lines.pop() || '';
-                
+
 
 
                 for (const line of lines) {
@@ -200,22 +205,22 @@ app.post('/api/v1/chat/completions', async (req, res) => {
                                     throw new Error('Incomplete JSON data');
                                 }
                                 const parsed = JSON.parse(data);
-                                
+
                                 // 验证JSON结构是否完整且有效
                                 if (!parsed || typeof parsed !== 'object') {
                                     throw new Error('Invalid JSON structure');
                                 }
-                                
+
                                 // 检查是否是限流错误
                                 if (parsed.error?.code === 429) {
                                     const errorMessage = parsed.error.message;
                                     const resetTimestamp = parseInt(parsed.error.metadata?.headers?.['X-RateLimit-Reset'] || '0');
                                     logger.warn(`Rate limit exceeded for key ${apiKey.substring(0, 10)}...`);
-                                    
+
                                     if (resetTimestamp) {
                                         const now = Date.now();
                                         const ttlSeconds = Math.max(1, Math.floor((resetTimestamp - now) / 1000));
-                                        
+
                                         if (errorMessage.includes('free-models-per-day')) {
                                             await redisClient.setEx(`${apiKey}:day`, ttlSeconds, "200");
                                             logger.info(`Marked key ${apiKey.substring(0, 10)}... as daily limit reached, will reset in ${ttlSeconds}s`);
@@ -234,7 +239,7 @@ app.post('/api/v1/chat/completions', async (req, res) => {
                                         }
                                     }
                                 }
-                                
+
                                 // 直接发送原始数据，避免 JSON.stringify 的额外转义
                                 res.write(`data: ${data}\n\n`);
                             }
@@ -277,11 +282,11 @@ app.post('/api/v1/chat/completions', async (req, res) => {
                 const errorMessage = response.data.error.message;
                 const resetTimestamp = parseInt(response.data.error.metadata?.headers?.['X-RateLimit-Reset'] || '0');
                 logger.warn(`Rate limit exceeded for key ${apiKey.substring(0, 10)}...`);
-                
+
                 if (resetTimestamp) {
                     const now = Date.now();
                     const ttlSeconds = Math.max(1, Math.floor((resetTimestamp - now) / 1000));
-                    
+
                     if (errorMessage.includes('free-models-per-day')) {
                         await redisClient.setEx(`${apiKey}:day`, ttlSeconds, "200");
                         logger.info(`Marked key ${apiKey.substring(0, 10)}... as daily limit reached, will reset in ${ttlSeconds}s`);
@@ -299,18 +304,18 @@ app.post('/api/v1/chat/completions', async (req, res) => {
                         logger.info(`Marked key ${apiKey.substring(0, 10)}... as minute limit reached (using default TTL)`);
                     }
                 }
-                
+
                 return res.status(429).json(response.data);
             }
 
             await updateApiKeyUsage(apiKey);
             logger.debug('Successfully processed request');
-            
+
             // 处理响应内容中的转义字符
             if (typeof response.data === 'object' && response.data.choices && response.data.choices[0]) {
                 const content = response.data.choices[0].message?.content;
                 const reasoning = response.data.choices[0].message?.reasoning;
-                
+
                 if (content) {
                     response.data.choices[0].message.content = content.replaceAll('\\n', '\n');
                 }
@@ -318,7 +323,7 @@ app.post('/api/v1/chat/completions', async (req, res) => {
                     response.data.choices[0].message.reasoning = reasoning.replaceAll('\\n', '\n');
                 }
             }
-            
+
             // 直接发送原始响应数据
             res.json(response.data);
         }
@@ -329,7 +334,7 @@ app.post('/api/v1/chat/completions', async (req, res) => {
             response: error.response?.data,
             status: error.response?.status
         });
-        
+
         // 如果是JSON解析错误，提供更具体的错误信息
         if (error.message.includes('EOF') || error.message.includes('JSON')) {
             return res.status(400).json({
@@ -340,7 +345,7 @@ app.post('/api/v1/chat/completions', async (req, res) => {
                 }
             });
         }
-        
+
         res.status(error.response?.status || 500).json(error.response?.data || {
             error: {
                 message: "Internal server error",
@@ -363,7 +368,7 @@ app.get('/api/v1/keys/status', async (req, res) => {
         for (const key of API_KEYS) {
             const minuteCount = await redisClient.get(`${key}:minute`);
             const dayCount = await redisClient.get(`${key}:day`);
-            
+
             // 获取剩余时间
             const minuteTTL = await redisClient.ttl(`${key}:minute`);
             const dayTTL = await redisClient.ttl(`${key}:day`);
@@ -380,13 +385,13 @@ app.get('/api/v1/keys/status', async (req, res) => {
                     remaining: dayCount ? Math.max(0, 200 - parseInt(dayCount)) : 200,
                     resetIn: dayTTL > 0 ? dayTTL : null
                 },
-                available: (!minuteCount || parseInt(minuteCount) < 20) && 
-                          (!dayCount || parseInt(dayCount) < 200)
+                available: (!minuteCount || parseInt(minuteCount) < 20) &&
+                    (!dayCount || parseInt(dayCount) < 200)
             });
         }
 
         const totalAvailable = results.filter(r => r.available).length;
-        
+
         res.json({
             total_keys: API_KEYS.length,
             available_keys: totalAvailable,
@@ -425,8 +430,8 @@ app.get('/admin', async (req, res) => {
                     remaining: dayCount ? Math.max(0, 200 - parseInt(dayCount)) : 200,
                     resetIn: dayTTL > 0 ? dayTTL : null
                 },
-                available: (!minuteCount || parseInt(minuteCount) < 20) && 
-                          (!dayCount || parseInt(dayCount) < 200)
+                available: (!minuteCount || parseInt(minuteCount) < 20) &&
+                    (!dayCount || parseInt(dayCount) < 200)
             };
         }));
 
@@ -480,7 +485,7 @@ app.post('/admin/keys/add', async (req, res) => {
         // 更新环境变量
         const newKeys = [...API_KEYS, newKey];
         await updateEnvFile('OPENROUTER_API_KEYS', newKeys.join(','));
-        
+
         // 更新内存中的密钥
         API_KEYS.push(newKey);
 
@@ -574,7 +579,7 @@ async function getTotalRequests() {
         const logFile = path.join(__dirname, '../logs/combined.log');
         const content = await fs.readFile(logFile, 'utf8');
         const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
-        
+
         return content
             .split('\n')
             .filter(Boolean)
@@ -582,7 +587,7 @@ async function getTotalRequests() {
                 try {
                     const log = JSON.parse(line);
                     return new Date(log.timestamp).getTime() > oneDayAgo &&
-                           log.path === '/api/v1/chat/completions';
+                        log.path === '/api/v1/chat/completions';
                 } catch (e) {
                     return false;
                 }
@@ -600,7 +605,7 @@ async function getErrorRate() {
         const logFile = path.join(__dirname, '../logs/combined.log');
         const content = await fs.readFile(logFile, 'utf8');
         const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
-        
+
         const logs = content
             .split('\n')
             .filter(Boolean)
@@ -608,7 +613,7 @@ async function getErrorRate() {
                 try {
                     const log = JSON.parse(line);
                     return new Date(log.timestamp).getTime() > oneDayAgo &&
-                           log.path === '/api/v1/chat/completions';
+                        log.path === '/api/v1/chat/completions';
                 } catch (e) {
                     return false;
                 }
@@ -638,14 +643,14 @@ async function updateEnvFile(key, value) {
     try {
         const envFile = path.join(__dirname, '../.env');
         let content = await fs.readFile(envFile, 'utf8');
-        
+
         const regex = new RegExp(`^${key}=.*$`, 'm');
         if (content.match(regex)) {
             content = content.replace(regex, `${key}=${value}`);
         } else {
             content += `\n${key}=${value}`;
         }
-        
+
         await fs.writeFile(envFile, content);
     } catch (error) {
         logger.error('Error updating .env file:', error);
